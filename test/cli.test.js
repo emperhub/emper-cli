@@ -43,6 +43,6 @@ test('entry prints the Emper package version without starting OpenCode', async (
     launchOpenCode:async () => { launched = true; return 0; },
   });
   assert.equal(code, 0);
-  assert.equal(value.trim(), '0.5.1');
+  assert.equal(value.trim(), '0.6.0');
   assert.equal(launched, false);
 });

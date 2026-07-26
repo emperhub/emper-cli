@@ -1,11 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   buildOpenCodeConfig,
   buildOpenCodeEnvironment,
+  installRuntimeTheme,
   normalizeRuntimeModels,
   rebrandOutput,
   resolveOpenCodeBinary,
@@ -50,7 +52,7 @@ test('OpenCode config is restricted to Emper and keeps credentials indirect', ()
   assert.equal(env.EMPER_API_KEY, secret);
   assert.equal(env.OPENCODE_CONFIG_CONTENT.includes(secret), false);
   assert.equal(env.OPENCODE_DB, 'emper.db');
-  assert.equal(env.EMPER_CLI_VERSION, '0.5.1');
+  assert.equal(env.EMPER_CLI_VERSION, '0.6.0');
   assert.equal(env.OPENCODE_DISABLE_TERMINAL_TITLE, '1');
   assert.match(env.XDG_DATA_HOME, /emper[\\/]runtime[\\/]data$/);
   assert.deepEqual(config.provider.emper.models['nova-x1'].limit, { context:245000, output:2000 });
@@ -70,13 +72,27 @@ test('default model falls back to the first model available to the account', () 
 test('bundled OpenCode binary and Emper TUI plugin are present', async () => {
   assert.ok(resolveOpenCodeBinary());
   const tui = JSON.parse(await fs.readFile(path.join(root, 'runtime', 'tui.json'), 'utf8'));
+  assert.equal(tui.theme, 'soru');
   assert.deepEqual(tui.plugin, ['./emper-plugin.tsx']);
+  const theme = JSON.parse(await fs.readFile(path.join(root, 'runtime', 'soru.json'), 'utf8'));
+  assert.equal(theme.theme.primary.dark, 'darkPrimary');
+  assert.equal(theme.defs.darkPrimary, '#5ee0b5');
+  assert.equal(theme.defs.darkBg, '#090d0c');
   const plugin = await fs.readFile(path.join(root, 'runtime', 'emper-plugin.tsx'), 'utf8');
   assert.match(plugin, /██████╗  ██████╗ ██████╗ ██╗   ██╗/u);
   assert.match(plugin, /home_logo/);
   assert.match(plugin, /home_prompt_right/);
   assert.match(plugin, /session_prompt_right/);
   assert.match(plugin, /\/points|name:\"points\"/);
+});
+
+test('SORU theme installs inside isolated Emper runtime state', async t => {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'emper-theme-'));
+  t.after(() => fs.rm(temp, { recursive:true, force:true }));
+  const target = await installRuntimeTheme({ XDG_CONFIG_HOME:temp });
+  assert.equal(target, path.join(temp, 'opencode', 'themes', 'soru.json'));
+  const theme = JSON.parse(await fs.readFile(target, 'utf8'));
+  assert.equal(theme.defs.darkPrimary, '#5ee0b5');
 });
 
 test('OpenCode help output is rebranded for Emper', () => {

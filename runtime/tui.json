@@ -1,3 +1,4 @@
 {
+  "theme": "soru",
   "plugin": ["./emper-plugin.tsx"]
 }

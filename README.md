@@ -64,6 +64,16 @@ The wrapper creates OpenCode provider configuration in memory for each launch.
 The API key is passed through the child process environment and is never written
 into OpenCode configuration or session files.
 
+## Branding and theme
+
+OpenCode is used as the agent runtime only. Emper's visible terminal branding,
+logo, account status, and footer live in `runtime/emper-plugin.tsx`; the SORU
+color palette lives in `runtime/soru.json`. `runtime/tui.json` selects that
+theme, so the interface can be redesigned without changing the agent engine.
+
+At launch, Emper copies the bundled theme into its isolated user configuration.
+It does not create `.opencode` files inside user projects.
+
 ## OpenCode
 
 Emper Code includes OpenCode 1.18.5 under the MIT License. See

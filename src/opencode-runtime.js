@@ -139,6 +139,26 @@ export function buildOpenCodeEnvironment({ apiKey, apiUrl, account, models, conf
   };
 }
 
+export async function installRuntimeTheme(env) {
+  const source = path.join(packageRoot(), 'runtime', 'soru.json');
+  const directory = path.join(env.XDG_CONFIG_HOME, 'opencode', 'themes');
+  const target = path.join(directory, 'soru.json');
+  try {
+    const contents = await fs.promises.readFile(source);
+    const current = await fs.promises.readFile(target).catch(error => {
+      if (error.code === 'ENOENT') return null;
+      throw error;
+    });
+    if (current?.equals(contents)) return target;
+    await fs.promises.mkdir(directory, { recursive:true, mode:0o700 });
+    await fs.promises.writeFile(target, contents, { mode:0o600 });
+    await fs.promises.chmod(target, 0o600).catch(() => {});
+    return target;
+  } catch (error) {
+    throw new CliError(`Unable to install the SORU terminal theme: ${error.message}`);
+  }
+}
+
 async function runtimeIdentity({ env, input, output, promptForKey }) {
   let config = await readConfig(env);
   let { apiKey } = resolveCredentials(config, env);
@@ -208,6 +228,7 @@ export async function launchOpenCode(args = [], dependencies = {}) {
   }
 
   const childEnv = buildOpenCodeEnvironment({ ...context, env });
+  await installRuntimeTheme(childEnv);
   const capture = args.some(arg => arg === '--help' || arg === '-h');
   const options = {
     cwd:dependencies.cwd || process.cwd(),
