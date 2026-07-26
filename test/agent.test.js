@@ -1,0 +1,53 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { agentTools, runAgent } from '../src/agent.js';
+import { createWorkspace } from '../src/workspace.js';
+
+function fakeClient(responses, requests) {
+  return {
+    chat:{ completions:{ create:async request => {
+      requests.push(request);
+      return responses.shift();
+    } } },
+  };
+}
+
+test('read-only agent does not expose write tools', async t => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'emper-agent-read-'));
+  t.after(() => fs.rm(root, { recursive:true, force:true }));
+  await fs.writeFile(path.join(root, 'app.js'), 'console.log("ok");\n');
+  const workspace = await createWorkspace(root);
+  const requests = [];
+  const client = fakeClient([{ choices:[{ message:{ role:'assistant', content:'No changes needed.' } }] }], requests);
+  const output = [];
+  await runAgent({ client, workspace, task:'inspect', model:'nova-x1', write:value => output.push(value) });
+  assert.deepEqual(requests[0].tools.map(tool => tool.function.name), ['list_files', 'read_file', 'search_text']);
+  assert.deepEqual(agentTools(false).map(tool => tool.function.name), ['list_files', 'read_file', 'search_text']);
+  assert.equal(output.at(-1), 'No changes needed.');
+});
+
+test('agent write remains unchanged when per-action approval is denied', async t => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'emper-agent-write-'));
+  t.after(() => fs.rm(root, { recursive:true, force:true }));
+  await fs.writeFile(path.join(root, 'app.js'), 'before\n');
+  const workspace = await createWorkspace(root, {
+    allowWrite:true,
+    backupRoot:path.join(root, '..', 'backups'),
+    approve:async () => false,
+  });
+  const requests = [];
+  const client = fakeClient([
+    { choices:[{ message:{ role:'assistant', content:null, tool_calls:[{
+      id:'call-write', type:'function', function:{ name:'write_file', arguments:JSON.stringify({ path:'app.js', content:'after\n' }) },
+    }] } }] },
+    { choices:[{ message:{ role:'assistant', content:'The proposed edit was not approved.' } }] },
+  ], requests);
+  await runAgent({ client, workspace, task:'change app', model:'nova-x1', write:() => {} });
+  assert.equal(await fs.readFile(path.join(root, 'app.js'), 'utf8'), 'before\n');
+  assert.equal(requests[0].tools.some(tool => tool.function.name === 'write_file'), true);
+  const toolMessage = requests[1].messages.find(message => message.role === 'tool');
+  assert.match(toolMessage.content, /"approved": false/);
+});
