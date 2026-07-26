@@ -26,7 +26,7 @@ const FALLBACK_MODELS = Object.freeze([
 ]);
 const MODEL_LIMITS = Object.freeze({
   'nova-x1':Object.freeze({ context:245000, output:2000 }),
-  'nova-x3':Object.freeze({ context:32000, output:4000 }),
+  'nova-x3':Object.freeze({ context:500000, output:4000 }),
   'nova-x5':Object.freeze({ context:64000, output:4000 }),
 });
 

@@ -70,6 +70,7 @@ test('default model falls back to the first model available to the account', () 
   });
   assert.equal(config.model, 'emper/nova-x3');
   assert.equal(config.small_model, 'emper/nova-x3');
+  assert.deepEqual(config.provider.emper.models['nova-x3'].limit, { context:500000, output:4000 });
 });
 
 test('bundled OpenCode binary and Emper TUI plugin are present', async () => {
