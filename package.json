@@ -1,6 +1,6 @@
 {
   "name": "@emperhub/cli",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Emper command-line assistant for Nova models",
   "type": "module",
   "bin": {
@@ -16,7 +16,7 @@
     "node": ">=20.17.0"
   },
   "scripts": {
-    "check": "node --check bin/emper.js && node --check src/cli.js && node --check src/config.js && node --check src/api.js && node --check src/errors.js && node --check src/format.js && node --check src/workspace.js && node --check src/agent.js && node --check test/cli.test.js",
+    "check": "node --check bin/emper.js && node --check src/cli.js && node --check src/tui.js && node --check src/config.js && node --check src/api.js && node --check src/errors.js && node --check src/format.js && node --check src/workspace.js && node --check src/agent.js && node --check test/cli.test.js && node --check test/tui.test.js",
     "test": "node --test",
     "prepack": "npm run check && npm test"
   },
@@ -41,6 +41,12 @@
     "commander": "^15.0.0",
     "diff": "^9.0.0",
     "ignore": "^7.0.6",
-    "openai": "^6.49.0"
+    "ink": "^6.8.0",
+    "ink-text-input": "^6.0.0",
+    "openai": "^6.49.0",
+    "react": "^19.2.0"
+  },
+  "devDependencies": {
+    "ink-testing-library": "^4.0.0"
   }
 }

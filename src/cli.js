@@ -18,6 +18,7 @@ import {
 } from './config.js';
 import { CliError, publicError } from './errors.js';
 import { printAccount, printModels, printUsage } from './format.js';
+import { launchTui } from './tui.js';
 import { createWorkspace } from './workspace.js';
 
 const require = createRequire(import.meta.url);
@@ -100,7 +101,8 @@ export function createProgram() {
     .description('Emper CLI for Nova chat and safe project assistance')
     .version(CLI_VERSION)
     .showSuggestionAfterError()
-    .showHelpAfterError();
+    .showHelpAfterError()
+    .action(async () => launchTui());
 
   program.command('login')
     .description('Validate and save an Emper API key')

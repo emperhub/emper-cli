@@ -22,17 +22,20 @@ npm install
 npm install --global .
 ```
 
-Then log in. The interactive prompt avoids placing the key in terminal history:
+Launch the terminal UI. If no key is saved, Emper opens a masked API-key screen and validates the account before entering the Agent:
 
 ```powershell
-emper login
+emper
 ```
+
+`emper login` remains available for a minimal prompt-only login flow.
 
 For temporary or automated sessions, set `EMPER_API_KEY` instead. Environment credentials override a saved key.
 
 ## Commands
 
 ```text
+emper                         Open the interactive terminal UI
 emper login                   Validate and save an API key
 emper logout                  Remove the saved API key
 emper whoami                  Show account and point balance
@@ -63,6 +66,8 @@ emper agent "inspect this project and find the likely bug"
 ```
 
 `emper agent` and `emper run` are read-only by default. They can list, read, and search safe text files beneath the current directory. They cannot execute shell commands.
+
+The no-argument terminal UI also starts in `READ ONLY`. Enter `/apply` to switch to `REVIEW EDITS`; Emper displays the full unified diff and waits for `Y` or `N` before every write. Enter `/readonly` to switch back.
 
 Use `--apply` to expose file-writing tools. Before each write, Emper prints a unified diff and asks for approval. Existing files are backed up under the user's Emper config directory. `--yes` skips prompts only when it is supplied together with `--apply`.
 
