@@ -43,6 +43,9 @@ test('OpenCode config is restricted to Emper and keeps credentials indirect', ()
   assert.deepEqual(Object.keys(config.provider), ['emper']);
   assert.deepEqual(Object.keys(config.provider.emper.models), ['nova-x1', 'nova-x5']);
   assert.equal('apiKey' in config.provider.emper.options, false);
+  assert.equal(config.provider.emper.options.timeout, false);
+  assert.equal(config.provider.emper.options.headerTimeout, false);
+  assert.equal('chunkTimeout' in config.provider.emper.options, false);
   assert.equal(config.provider.emper.models['nova-x5'].attachment, true);
   assert.deepEqual(config.provider.emper.models['nova-x5'].modalities.input, ['text', 'image']);
   assert.equal(config.share, 'disabled');

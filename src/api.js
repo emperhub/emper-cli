@@ -18,7 +18,7 @@ async function responseJson(response) {
 export function createApiClient({ apiKey, baseURL, fetchImpl = globalThis.fetch, timeoutMs = 30000 }) {
   if (!apiKey) throw new CliError('No API key configured. Run "emper login" first.');
   const normalizedBaseURL = normalizeApiUrl(baseURL);
-  const openai = new OpenAI({ apiKey, baseURL:normalizedBaseURL, timeout:timeoutMs, fetch:fetchImpl });
+  const openai = new OpenAI({ apiKey, baseURL:normalizedBaseURL, fetch:fetchImpl });
 
   async function get(pathname, search = {}) {
     const url = new URL(endpoint(normalizedBaseURL, pathname));
