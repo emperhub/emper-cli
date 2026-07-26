@@ -1,6 +1,6 @@
 {
   "name": "@emperhub/cli",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Emper command-line assistant for Nova models",
   "type": "module",
   "bin": {
@@ -16,7 +16,7 @@
     "node": ">=20.17.0"
   },
   "scripts": {
-    "check": "node --check bin/emper.js && node --check src/cli.js && node --check src/config.js && node --check src/api.js && node --check src/errors.js && node --check src/format.js && node --check src/workspace.js && node --check src/agent.js",
+    "check": "node --check bin/emper.js && node --check src/cli.js && node --check src/config.js && node --check src/api.js && node --check src/errors.js && node --check src/format.js && node --check src/workspace.js && node --check src/agent.js && node --check test/cli.test.js",
     "test": "node --test",
     "prepack": "npm run check && npm test"
   },

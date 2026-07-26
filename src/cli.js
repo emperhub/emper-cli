@@ -1,9 +1,10 @@
 import process from 'node:process';
+import { createRequire } from 'node:module';
 import { createInterface } from 'node:readline/promises';
 import { Command } from 'commander';
 import { confirm, password } from '@inquirer/prompts';
 import { createApiClient } from './api.js';
-import { runAgent } from './agent.js';
+import { createAgentSession, runAgent } from './agent.js';
 import {
   assertApiKey,
   clearStoredApiKey,
@@ -18,6 +19,9 @@ import {
 import { CliError, publicError } from './errors.js';
 import { printAccount, printModels, printUsage } from './format.js';
 import { createWorkspace } from './workspace.js';
+
+const require = createRequire(import.meta.url);
+const { version:CLI_VERSION } = require('../package.json');
 
 async function configuredApi(options = {}) {
   const config = await readConfig();
@@ -44,12 +48,57 @@ async function streamAnswer(api, request, write = chunk => process.stdout.write(
   return answer;
 }
 
+function validateAgentOptions(options) {
+  if (options.yes && !options.apply) throw new CliError('--yes requires --apply.');
+  if (!Number.isInteger(options.maxTurns) || options.maxTurns < 1 || options.maxTurns > 30) {
+    throw new CliError('max-turns must be an integer between 1 and 30.');
+  }
+}
+
+async function agentWorkspace(options) {
+  return createWorkspace(process.cwd(), {
+    allowWrite:options.apply,
+    autoApprove:options.yes,
+    writeOutput:diff => console.log(`\n${diff}`),
+    approve:async ({ path }) => confirm({ message:`Apply this change to ${path}?`, default:false }),
+  });
+}
+
+export async function runInteractiveAgent({ session, read, write = console.log, initialTask = '' }) {
+  const handleTask = async task => {
+    await session.ask(task);
+  };
+  if (String(initialTask).trim()) await handleTask(initialTask);
+
+  while (true) {
+    const input = String(await read()).trim();
+    if (!input) continue;
+    if (input === '/exit' || input === '/quit') return;
+    if (input === '/clear') {
+      session.clear();
+      write('Agent context cleared.');
+      continue;
+    }
+    if (input === '/status') {
+      write(`Model: ${session.model} | Mode: ${session.workspace.allowWrite ? 'apply' : 'read-only'} | Context messages: ${Math.max(0, session.messages.length - 1)}`);
+      continue;
+    }
+    if (input === '/help') {
+      write('/clear  Clear agent context');
+      write('/status Show model, mode, and context size');
+      write('/exit   End the agent session');
+      continue;
+    }
+    await handleTask(input);
+  }
+}
+
 export function createProgram() {
   const program = new Command();
   program
     .name('emper')
     .description('Emper CLI for Nova chat and safe project assistance')
-    .version('0.1.0')
+    .version(CLI_VERSION)
     .showSuggestionAfterError()
     .showHelpAfterError();
 
@@ -155,18 +204,10 @@ export function createProgram() {
     .option('-y, --yes', 'Approve all file changes; requires --apply')
     .option('--api-url <url>', 'Override the configured API base URL')
     .action(async (taskParts, options) => {
-      if (options.yes && !options.apply) throw new CliError('--yes requires --apply.');
-      if (!Number.isInteger(options.maxTurns) || options.maxTurns < 1 || options.maxTurns > 30) {
-        throw new CliError('max-turns must be an integer between 1 and 30.');
-      }
+      validateAgentOptions(options);
       const { api, config } = await configuredApi(options);
       const selected = validateConfig({ ...config, model:options.model || config.model });
-      const workspace = await createWorkspace(process.cwd(), {
-        allowWrite:options.apply,
-        autoApprove:options.yes,
-        writeOutput:diff => console.log(`\n${diff}`),
-        approve:async ({ path }) => confirm({ message:`Apply this change to ${path}?`, default:false }),
-      });
+      const workspace = await agentWorkspace(options);
       if (!options.apply) console.log('Read-only mode. Use --apply to allow reviewed file changes.');
       await runAgent({
         client:api.openai,
@@ -175,6 +216,43 @@ export function createProgram() {
         model:selected.model,
         maxTurns:options.maxTurns,
       });
+    });
+
+  program.command('agent')
+    .description('Start an interactive AI coding agent in the current project')
+    .argument('[task...]', 'Optional first task')
+    .option('-m, --model <model>', 'Public Nova model ID')
+    .option('--max-turns <count>', 'Maximum model turns per task (1-30)', value => Number(value), 12)
+    .option('--apply', 'Allow proposed file changes with per-action approval')
+    .option('-y, --yes', 'Approve all file changes; requires --apply')
+    .option('--api-url <url>', 'Override the configured API base URL')
+    .action(async (taskParts = [], options) => {
+      validateAgentOptions(options);
+      const { api, config } = await configuredApi(options);
+      const selected = validateConfig({ ...config, model:options.model || config.model });
+      const workspace = await agentWorkspace(options);
+      const output = value => {
+        const text = String(value);
+        console.log(text.startsWith('[tool]') ? text : `Emper> ${text}`);
+      };
+      const session = createAgentSession({
+        client:api.openai,
+        workspace,
+        model:selected.model,
+        maxTurns:options.maxTurns,
+        write:output,
+      });
+      const terminal = createInterface({ input:process.stdin, output:process.stdout });
+      console.log(`Emper agent (${selected.model}, ${options.apply ? 'apply' : 'read-only'}). Use /help or /exit.`);
+      try {
+        await runInteractiveAgent({
+          session,
+          initialTask:taskParts.join(' '),
+          read:() => terminal.question('You> '),
+        });
+      } finally {
+        terminal.close();
+      }
     });
 
   program.command('config')

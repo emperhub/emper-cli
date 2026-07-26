@@ -3,13 +3,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { agentTools, runAgent } from '../src/agent.js';
+import { agentTools, createAgentSession, runAgent } from '../src/agent.js';
+import { runInteractiveAgent } from '../src/cli.js';
 import { createWorkspace } from '../src/workspace.js';
 
 function fakeClient(responses, requests) {
   return {
     chat:{ completions:{ create:async request => {
-      requests.push(request);
+      requests.push(structuredClone(request));
       return responses.shift();
     } } },
   };
@@ -50,4 +51,51 @@ test('agent write remains unchanged when per-action approval is denied', async t
   assert.equal(requests[0].tools.some(tool => tool.function.name === 'write_file'), true);
   const toolMessage = requests[1].messages.find(message => message.role === 'tool');
   assert.match(toolMessage.content, /"approved": false/);
+});
+
+test('interactive agent session preserves context and can clear it', async t => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'emper-agent-session-'));
+  t.after(() => fs.rm(root, { recursive:true, force:true }));
+  const workspace = await createWorkspace(root);
+  const requests = [];
+  const client = fakeClient([
+    { choices:[{ message:{ role:'assistant', content:'First answer' } }] },
+    { choices:[{ message:{ role:'assistant', content:'Second answer' } }] },
+    { choices:[{ message:{ role:'assistant', content:'Fresh answer' } }] },
+  ], requests);
+  const session = createAgentSession({ client, workspace, model:'nova-x1', write:() => {} });
+
+  await session.ask('first task');
+  await session.ask('follow-up task');
+  assert.equal(requests[1].messages.some(message => message.content === 'first task'), true);
+  assert.equal(requests[1].messages.some(message => message.content === 'First answer'), true);
+  assert.equal(requests[1].messages.at(-1).content, 'follow-up task');
+
+  session.clear();
+  await session.ask('fresh task');
+  assert.deepEqual(requests[2].messages.map(message => message.role), ['system', 'user']);
+  assert.equal(requests[2].messages[1].content, 'fresh task');
+});
+
+test('interactive agent handles session commands without sending them to the model', async () => {
+  const tasks = [];
+  let clears = 0;
+  const session = {
+    model:'nova-x1',
+    workspace:{ allowWrite:false },
+    messages:[{ role:'system' }],
+    ask:async task => { tasks.push(task); session.messages.push({ role:'user', content:task }); },
+    clear:() => { clears += 1; session.messages.splice(1); },
+  };
+  const inputs = ['/status', 'inspect files', '/clear', 'find bug', '/help', '/exit'];
+  const output = [];
+  await runInteractiveAgent({
+    session,
+    read:async () => inputs.shift(),
+    write:value => output.push(value),
+  });
+  assert.deepEqual(tasks, ['inspect files', 'find bug']);
+  assert.equal(clears, 1);
+  assert.equal(output.some(line => line.includes('Mode: read-only')), true);
+  assert.equal(output.some(line => line.includes('/exit')), true);
 });

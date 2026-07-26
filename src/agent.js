@@ -62,6 +62,22 @@ export function agentTools(allowWrite = false) {
   return allowWrite ? [...READ_TOOLS, ...WRITE_TOOLS] : [...READ_TOOLS];
 }
 
+function agentSystemMessage(workspace) {
+  return {
+    role:'system',
+    content:[
+      'You are Emper, a coding assistant operating only through the supplied file tools.',
+      'The workspace root is the current working directory. Never claim access outside it.',
+      'There is no shell tool. Do not ask to run shell commands as if you ran them.',
+      workspace.allowWrite
+        ? 'File writes are available, but the CLI shows a diff and obtains approval for each action.'
+        : 'This session is read-only. Inspect files and explain proposed changes; do not claim to have edited anything.',
+      'Never request, reveal, copy, or write credentials, API keys, .env contents, databases, or private keys.',
+      'Keep the final answer concise and list files actually changed.',
+    ].join('\n'),
+  };
+}
+
 function toolResult(value) {
   return JSON.stringify(value, null, 2).slice(0, 60000);
 }
@@ -90,46 +106,56 @@ async function executeTool(workspace, call) {
   }
 }
 
-export async function runAgent({ client, workspace, task, model, maxTurns = 12, write = console.log }) {
+export function createAgentSession({ client, workspace, model, maxTurns = 12, write = console.log }) {
   const tools = agentTools(workspace.allowWrite);
-  const messages = [
-    {
-      role:'system',
-      content:[
-        'You are Emper, a coding assistant operating only through the supplied file tools.',
-        'The workspace root is the current working directory. Never claim access outside it.',
-        'There is no shell tool. Do not ask to run shell commands as if you ran them.',
-        workspace.allowWrite
-          ? 'File writes are available, but the CLI shows a diff and obtains approval for each action.'
-          : 'This run is read-only. Inspect files and explain proposed changes; do not claim to have edited anything.',
-        'Never request, reveal, copy, or write credentials, API keys, .env contents, databases, or private keys.',
-        'Keep the final answer concise and list files actually changed.',
-      ].join('\n'),
-    },
-    { role:'user', content:String(task) },
-  ];
+  const messages = [agentSystemMessage(workspace)];
 
-  for (let turn = 0; turn < maxTurns; turn++) {
-    let completion;
-    try {
-      completion = await client.chat.completions.create({ model, messages, tools, tool_choice:'auto' });
-    } catch (error) {
-      throw publicError(error);
+  return {
+    messages,
+    model,
+    workspace,
+    clear() {
+      messages.splice(0, messages.length, agentSystemMessage(workspace));
+    },
+    async ask(task) {
+      const prompt = String(task || '').trim();
+      if (!prompt) throw new Error('Agent task cannot be empty.');
+      const taskStart = messages.length;
+      messages.push({ role:'user', content:prompt });
+
+      for (let turn = 0; turn < maxTurns; turn++) {
+        let completion;
+        try {
+          completion = await client.chat.completions.create({ model, messages, tools, tool_choice:'auto' });
+        } catch (error) {
+          messages.splice(taskStart);
+          throw publicError(error);
+        }
+        const message = completion.choices?.[0]?.message;
+        if (!message) {
+          messages.splice(taskStart);
+          throw new Error('Model returned no message.');
+        }
+        messages.push(message);
+        const calls = message.tool_calls || [];
+        if (!calls.length) {
+          const content = String(message.content || '').trim();
+          if (content) write(content);
+          return { content, turns:turn + 1, messages };
+        }
+        for (const call of calls) {
+          write(`[tool] ${call.function.name}`);
+          const result = await executeTool(workspace, call);
+          messages.push({ role:'tool', tool_call_id:call.id, content:toolResult(result) });
+        }
+      }
+      messages.splice(taskStart);
+      throw new Error(`Agent stopped after ${maxTurns} turns without a final answer.`);
     }
-    const message = completion.choices?.[0]?.message;
-    if (!message) throw new Error('Model returned no message.');
-    messages.push(message);
-    const calls = message.tool_calls || [];
-    if (!calls.length) {
-      const content = String(message.content || '').trim();
-      if (content) write(content);
-      return { content, turns:turn + 1, messages };
-    }
-    for (const call of calls) {
-      write(`[tool] ${call.function.name}`);
-      const result = await executeTool(workspace, call);
-      messages.push({ role:'tool', tool_call_id:call.id, content:toolResult(result) });
-    }
-  }
-  throw new Error(`Agent stopped after ${maxTurns} turns without a final answer.`);
+  };
+}
+
+export async function runAgent(options) {
+  const session = createAgentSession(options);
+  return session.ask(options.task);
 }
