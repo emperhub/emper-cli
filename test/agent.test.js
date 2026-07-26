@@ -25,8 +25,9 @@ test('read-only agent does not expose write tools', async t => {
   const client = fakeClient([{ choices:[{ message:{ role:'assistant', content:'No changes needed.' } }] }], requests);
   const output = [];
   await runAgent({ client, workspace, task:'inspect', model:'nova-x1', write:value => output.push(value) });
-  assert.deepEqual(requests[0].tools.map(tool => tool.function.name), ['list_files', 'read_file', 'search_text']);
-  assert.deepEqual(agentTools(false).map(tool => tool.function.name), ['list_files', 'read_file', 'search_text']);
+  assert.deepEqual(requests[0].tools.map(tool => tool.function.name), ['list_files', 'find_files', 'read_file', 'read_files', 'search_text']);
+  assert.deepEqual(agentTools(false).map(tool => tool.function.name), ['list_files', 'find_files', 'read_file', 'read_files', 'search_text']);
+  assert.deepEqual(agentTools(true).slice(-3).map(tool => tool.function.name), ['write_file', 'apply_patch', 'replace_text']);
   assert.equal(output.at(-1), 'No changes needed.');
 });
 
@@ -98,4 +99,36 @@ test('interactive agent handles session commands without sending them to the mod
   assert.equal(clears, 1);
   assert.equal(output.some(line => line.includes('Mode: read-only')), true);
   assert.equal(output.some(line => line.includes('/exit')), true);
+});
+
+test('agent emits detailed tool lifecycle events and restores saved context', async t => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'emper-agent-events-'));
+  t.after(() => fs.rm(root, { recursive:true, force:true }));
+  await fs.writeFile(path.join(root, 'one.js'), 'one\n');
+  await fs.writeFile(path.join(root, 'two.js'), 'two\n');
+  const workspace = await createWorkspace(root);
+  const requests = [];
+  const client = fakeClient([
+    { choices:[{ message:{ role:'assistant', content:null, tool_calls:[{
+      id:'call-read-many', type:'function', function:{
+        name:'read_files',
+        arguments:JSON.stringify({ files:[{ path:'one.js' }, { path:'two.js' }] }),
+      },
+    }] } }] },
+    { choices:[{ message:{ role:'assistant', content:'Both files were inspected.' } }] },
+  ], requests);
+  const events = [];
+  const session = createAgentSession({
+    client,
+    workspace,
+    model:'nova-x1',
+    initialMessages:[{ role:'user', content:'Earlier question' }, { role:'assistant', content:'Earlier answer' }],
+    onEvent:event => events.push(event),
+  });
+  await session.ask('inspect both files');
+  assert.equal(requests[0].messages.some(message => message.content === 'Earlier question'), true);
+  assert.deepEqual(events.map(event => event.type), ['tool_start', 'tool_end', 'assistant']);
+  assert.match(events[0].label, /Read 2 related files/);
+  assert.equal(events[1].ok, true);
+  assert.match(events[1].summary, /2 files read/);
 });

@@ -96,3 +96,26 @@ test('read-only workspace rejects direct writes', async t => {
   const workspace = await createWorkspace(project, { backupRoot:backups });
   await assert.rejects(workspace.writeFile('safe.txt', 'changed\n'), /--apply/);
 });
+
+test('workspace reads related files and applies exact reviewed replacements', async t => {
+  const { project, backups } = await fixture(t);
+  await fs.writeFile(path.join(project, 'second.txt'), 'second\n');
+  const workspace = await createWorkspace(project, {
+    allowWrite:true,
+    backupRoot:backups,
+    approve:async () => true,
+  });
+  const files = await workspace.readFiles([{ path:'safe.txt' }, { path:'second.txt' }]);
+  assert.deepEqual(files.map(file => file.path), ['safe.txt', 'second.txt']);
+  assert.deepEqual(await workspace.findFiles('**/*.txt'), ['notes.txt', 'safe.txt', 'second.txt']);
+  const filteredMatches = await workspace.searchText('second', '.', { filePattern:'**/second.*' });
+  assert.deepEqual(filteredMatches.map(match => match.path), ['second.txt']);
+
+  const result = await workspace.replaceText('safe.txt', 'before', 'after');
+  assert.equal(result.changed, true);
+  assert.equal(result.occurrences, 1);
+  assert.equal(await fs.readFile(path.join(project, 'safe.txt'), 'utf8'), 'after\n');
+
+  await fs.writeFile(path.join(project, 'repeated.txt'), 'same same\n');
+  await assert.rejects(workspace.replaceText('repeated.txt', 'same', 'next'), /appears 2 times/i);
+});

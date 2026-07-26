@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import Ignore from 'ignore';
 import { applyPatch as applyUnifiedPatch, createTwoFilesPatch, parsePatch } from 'diff';
+import { minimatch } from 'minimatch';
 import { configDirectory } from './config.js';
 import { CliError } from './errors.js';
 
@@ -159,10 +160,34 @@ export async function createWorkspace(root = process.cwd(), options = {}) {
     };
   }
 
-  async function searchText(query, relativePath = '.') {
+  async function readFiles(paths) {
+    if (!Array.isArray(paths) || paths.length < 1 || paths.length > 10) {
+      throw new CliError('readFiles requires between 1 and 10 file paths.');
+    }
+    return Promise.all(paths.map(item => {
+      if (typeof item === 'string') return readFile(item);
+      return readFile(item?.path, { startLine:item?.startLine, endLine:item?.endLine });
+    }));
+  }
+
+  async function findFiles(pattern, relativePath = '.') {
+    const value = toPosix(pattern).trim();
+    if (!value || value.length > 200 || value.includes('\0') || value.split('/').includes('..')) {
+      throw new CliError('File pattern must contain 1-200 characters and stay inside the workspace.');
+    }
+    const files = await listFiles(relativePath, { maxFiles:1000, maxDepth:20 });
+    return files.filter(file => minimatch(toPosix(file), value, {
+      dot:true,
+      nocase:process.platform === 'win32',
+    })).slice(0, 300);
+  }
+
+  async function searchText(query, relativePath = '.', { filePattern } = {}) {
     const needle = String(query || '');
     if (!needle || needle.length > 200) throw new CliError('Search text must contain 1-200 characters.');
-    const files = await listFiles(relativePath, { maxFiles:500, maxDepth:12 });
+    const files = filePattern
+      ? await findFiles(filePattern, relativePath)
+      : await listFiles(relativePath, { maxFiles:500, maxDepth:12 });
     const results = [];
     for (const file of files) {
       if (results.length >= 200) break;
@@ -233,14 +258,36 @@ export async function createWorkspace(root = process.cwd(), options = {}) {
     return writeFile(target.relative, next);
   }
 
+  async function replaceText(relativePath, oldText, newText, { replaceAll = false } = {}) {
+    if (!allowWrite) throw new CliError('Writing is disabled. Run again with --apply.');
+    const target = await resolveSafe(relativePath);
+    const previous = await fs.readFile(target.absolute, 'utf8');
+    if (previous.includes('\0')) throw new CliError(`Binary file cannot be edited: ${target.relative}`);
+    if (containsSecret(previous)) throw new CliError(`File may contain secrets and was blocked: ${target.relative}`);
+    const needle = String(oldText ?? '');
+    const replacement = String(newText ?? '');
+    if (!needle) throw new CliError('Replacement text cannot be empty.');
+    let occurrences = 0;
+    for (let index = 0; (index = previous.indexOf(needle, index)) >= 0; index += needle.length) occurrences += 1;
+    if (!occurrences) throw new CliError(`Text was not found in ${target.relative}.`);
+    if (occurrences > 1 && !replaceAll) {
+      throw new CliError(`Text appears ${occurrences} times in ${target.relative}; provide more context or set replace_all.`);
+    }
+    const next = replaceAll ? previous.split(needle).join(replacement) : previous.replace(needle, replacement);
+    return { ...(await writeFile(target.relative, next)), occurrences:replaceAll ? occurrences : 1 };
+  }
+
   return {
     root:rootReal,
     allowWrite,
     listFiles,
     readFile,
+    readFiles,
+    findFiles,
     searchText,
     writeFile,
     applyPatch,
+    replaceText,
     resolveSafe,
   };
 }

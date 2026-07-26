@@ -30,6 +30,8 @@ emper
 
 `emper login` remains available for a minimal prompt-only login flow.
 
+The Agent header shows the active model, workspace, remaining points, and total points used. Use `/model` to switch between models available to the active API key and `/session` to open saved chats for the current workspace.
+
 For temporary or automated sessions, set `EMPER_API_KEY` instead. Environment credentials override a saved key.
 
 ## Commands
@@ -67,13 +69,31 @@ emper agent "inspect this project and find the likely bug"
 
 `emper agent` and `emper run` are read-only by default. They can list, read, and search safe text files beneath the current directory. They cannot execute shell commands.
 
-The no-argument terminal UI also starts in `READ ONLY`. Enter `/apply` to switch to `REVIEW EDITS`; Emper displays the full unified diff and waits for `Y` or `N` before every write. Enter `/readonly` to switch back.
+The no-argument terminal UI also starts in `READ ONLY`. Enter `/apply` to switch to `REVIEW EDITS`; Emper displays the full unified diff and waits for `Y` or `N` before every write. Enter `/readonly` to switch back. Conversation context is preserved when switching modes or models.
+
+Terminal UI commands:
+
+```text
+/model       Choose an available Nova model
+/session     Open a saved chat for the current workspace
+/new         Start a clean session
+/apply       Enable reviewed file changes
+/readonly    Return to inspection-only mode
+/clear       Clear the active conversation context
+/status      Show model, mode, context, and point balance
+/logout      Remove the saved API key
+/exit        Close Emper
+```
+
+Agent tools report their live status, target path, result count, and elapsed time in the transcript. The safe tool set can find files with glob patterns, search text with file filters, read one or several files, replace exact text, apply patches, and create or rewrite files. Shell execution remains unavailable.
 
 Use `--apply` to expose file-writing tools. Before each write, Emper prints a unified diff and asks for approval. Existing files are backed up under the user's Emper config directory. `--yes` skips prompts only when it is supplied together with `--apply`.
 
 The project tools reject path traversal and symlink escapes. They exclude ignored files and common secret or generated paths, including `.env*`, credentials, private keys, databases, `.git`, `node_modules`, and `.emper`.
 
 Agent tool loops can make multiple API requests for one task. Every request uses the normal API point billing for the selected Nova model.
+
+Chats are stored per workspace under the Emper config directory. Stored session text is sanitized for API keys and authorization tokens, uses owner-only file permissions where supported, and never stores the active API credential as session metadata.
 
 ## Local credential storage
 
