@@ -1,0 +1,3 @@
+{
+  "plugin": ["./emper-plugin.tsx"]
+}
