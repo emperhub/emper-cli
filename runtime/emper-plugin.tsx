@@ -40,7 +40,7 @@ function Logo(props: { api: any }) {
   const theme = () => props.api.theme.current
   return (
     <box flexDirection="column" alignItems="flex-start">
-      <For each={LOGO}>{(line) => <text fg={theme().primary}>{line}</text>}</For>
+      <For each={LOGO}>{(line) => <text fg={theme().success}>{line}</text>}</For>
     </box>
   )
 }
@@ -68,7 +68,7 @@ function Footer(props: { api: any; account: () => Account }) {
         {directory()}<Show when={branch()}>:{branch()}</Show>
       </text>
       <box flexGrow={1} />
-      <text fg={props.api.theme.current.primary}>SORU</text>
+      <text fg={props.api.theme.current.success}>SORU</text>
       <text fg={props.api.theme.current.textMuted}>Emper Code {version}</text>
     </box>
   )

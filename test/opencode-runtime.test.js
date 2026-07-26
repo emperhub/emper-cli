@@ -52,7 +52,7 @@ test('OpenCode config is restricted to Emper and keeps credentials indirect', ()
   assert.equal(env.EMPER_API_KEY, secret);
   assert.equal(env.OPENCODE_CONFIG_CONTENT.includes(secret), false);
   assert.equal(env.OPENCODE_DB, 'emper.db');
-  assert.equal(env.EMPER_CLI_VERSION, '0.6.0');
+  assert.equal(env.EMPER_CLI_VERSION, '0.6.1');
   assert.equal(env.OPENCODE_DISABLE_TERMINAL_TITLE, '1');
   assert.match(env.XDG_DATA_HOME, /emper[\\/]runtime[\\/]data$/);
   assert.deepEqual(config.provider.emper.models['nova-x1'].limit, { context:245000, output:2000 });
@@ -76,7 +76,9 @@ test('bundled OpenCode binary and Emper TUI plugin are present', async () => {
   assert.deepEqual(tui.plugin, ['./emper-plugin.tsx']);
   const theme = JSON.parse(await fs.readFile(path.join(root, 'runtime', 'soru.json'), 'utf8'));
   assert.equal(theme.theme.primary.dark, 'darkPrimary');
-  assert.equal(theme.defs.darkPrimary, '#5ee0b5');
+  assert.equal(theme.defs.darkPrimary, '#2f806a');
+  assert.equal(theme.defs.darkSuccess, '#5ee0b5');
+  assert.equal(theme.theme.selectedListItemText.dark, 'darkText');
   assert.equal(theme.defs.darkBg, '#090d0c');
   const plugin = await fs.readFile(path.join(root, 'runtime', 'emper-plugin.tsx'), 'utf8');
   assert.match(plugin, /██████╗  ██████╗ ██████╗ ██╗   ██╗/u);
@@ -92,7 +94,8 @@ test('SORU theme installs inside isolated Emper runtime state', async t => {
   const target = await installRuntimeTheme({ XDG_CONFIG_HOME:temp });
   assert.equal(target, path.join(temp, 'opencode', 'themes', 'soru.json'));
   const theme = JSON.parse(await fs.readFile(target, 'utf8'));
-  assert.equal(theme.defs.darkPrimary, '#5ee0b5');
+  assert.equal(theme.defs.darkPrimary, '#2f806a');
+  assert.equal(theme.defs.darkSuccess, '#5ee0b5');
 });
 
 test('OpenCode help output is rebranded for Emper', () => {
