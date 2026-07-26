@@ -16,6 +16,7 @@ import {
 import { CliError, publicError } from './errors.js';
 
 const require = createRequire(import.meta.url);
+const { version:CLI_VERSION } = require('../package.json');
 const PUBLIC_MODEL_IDS = Object.freeze(['nova-x1', 'nova-x3', 'nova-x5']);
 const PUBLIC_MODEL_SET = new Set(PUBLIC_MODEL_IDS);
 const FALLBACK_MODELS = Object.freeze([
@@ -124,10 +125,12 @@ export function buildOpenCodeEnvironment({ apiKey, apiUrl, account, models, conf
     ...env,
     EMPER_API_KEY:apiKey,
     EMPER_API_URL:apiUrl,
+    EMPER_CLI_VERSION:CLI_VERSION,
     OPENCODE_CONFIG_CONTENT:JSON.stringify(inlineConfig),
     OPENCODE_TUI_CONFIG:tuiConfig,
     OPENCODE_DISABLE_AUTOUPDATE:'1',
     OPENCODE_DISABLE_MODELS_FETCH:'1',
+    OPENCODE_DISABLE_TERMINAL_TITLE:'1',
     OPENCODE_DB:'emper.db',
     XDG_CONFIG_HOME:path.join(runtimeState, 'config'),
     XDG_DATA_HOME:path.join(runtimeState, 'data'),

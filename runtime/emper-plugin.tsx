@@ -1,5 +1,14 @@
 /** @jsxImportSource @opentui/solid */
-import { createSignal, Show } from "solid-js"
+import { createSignal, For, Show } from "solid-js"
+
+const LOGO = [
+  "██████╗  ██████╗ ██████╗ ██╗   ██╗",
+  "██╔════╝ ██╔═══██╗██╔══██╗██║   ██║",
+  "╚█████╗  ██║   ██║██████╔╝██║   ██║",
+  " ╚═══██╗ ██║   ██║██╔══██╗██║   ██║",
+  "██████╔╝ ╚██████╔╝██║  ██║╚██████╔╝",
+  "╚═════╝   ╚═════╝ ╚═╝  ╚═╝ ╚═════╝",
+] as const
 
 type Account = {
   state: "loading" | "ready" | "error"
@@ -16,16 +25,22 @@ function number(value: number | undefined) {
 function balance(account: Account) {
   if (account.state === "loading") return "loading points..."
   if (account.state === "error") return "points unavailable"
-  if (account.admin) return "admin | unlimited"
+  if (account.admin) return "ADMIN | UNLIMITED"
   return `${number(account.points)} pts | ${number(account.used)} used`
+}
+
+function shortDirectory(value: string) {
+  const home = String(process.env.USERPROFILE || process.env.HOME || "").replace(/\\/g, "/")
+  let current = value.replace(/\\/g, "/")
+  if (home && current.toLowerCase().startsWith(home.toLowerCase())) current = `~${current.slice(home.length)}`
+  return current.length > 48 ? `...${current.slice(-45)}` : current
 }
 
 function Logo(props: { api: any }) {
   const theme = () => props.api.theme.current
   return (
-    <box flexDirection="column" alignItems="center">
-      <text fg={theme().primary}>EMPER CODE</text>
-      <text fg={theme().textMuted}>NOVA AGENT</text>
+    <box flexDirection="column" alignItems="flex-start">
+      <For each={LOGO}>{(line) => <text fg={theme().primary}>{line}</text>}</For>
     </box>
   )
 }
@@ -35,8 +50,9 @@ function PointStatus(props: { api: any; account: () => Account }) {
 }
 
 function Footer(props: { api: any; account: () => Account }) {
-  const directory = () => props.api.state.path.directory || process.cwd()
+  const directory = () => shortDirectory(props.api.state.path.directory || process.cwd())
   const branch = () => props.api.state.vcs?.branch
+  const version = String(process.env.EMPER_CLI_VERSION || "")
   return (
     <box
       width="100%"
@@ -52,8 +68,8 @@ function Footer(props: { api: any; account: () => Account }) {
         {directory()}<Show when={branch()}>:{branch()}</Show>
       </text>
       <box flexGrow={1} />
-      <text fg={props.api.theme.current.primary}>Emper</text>
-      <text fg={props.api.theme.current.textMuted}>{balance(props.account())}</text>
+      <text fg={props.api.theme.current.primary}>SORU</text>
+      <text fg={props.api.theme.current.textMuted}>Emper Code {version}</text>
     </box>
   )
 }
@@ -93,8 +109,9 @@ export default {
     }
 
     api.renderer.setTerminalTitle("Emper Code")
+    api.kv.set("tips_hidden", true)
     api.slots.register({
-      order:1000000,
+      order:-1000000,
       slots:{
         home_logo() {
           return <Logo api={api} />

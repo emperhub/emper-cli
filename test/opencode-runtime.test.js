@@ -50,6 +50,8 @@ test('OpenCode config is restricted to Emper and keeps credentials indirect', ()
   assert.equal(env.EMPER_API_KEY, secret);
   assert.equal(env.OPENCODE_CONFIG_CONTENT.includes(secret), false);
   assert.equal(env.OPENCODE_DB, 'emper.db');
+  assert.equal(env.EMPER_CLI_VERSION, '0.5.1');
+  assert.equal(env.OPENCODE_DISABLE_TERMINAL_TITLE, '1');
   assert.match(env.XDG_DATA_HOME, /emper[\\/]runtime[\\/]data$/);
   assert.deepEqual(config.provider.emper.models['nova-x1'].limit, { context:245000, output:2000 });
   assert.deepEqual(config.provider.emper.models['nova-x5'].limit, { context:64000, output:4000 });
@@ -70,6 +72,7 @@ test('bundled OpenCode binary and Emper TUI plugin are present', async () => {
   const tui = JSON.parse(await fs.readFile(path.join(root, 'runtime', 'tui.json'), 'utf8'));
   assert.deepEqual(tui.plugin, ['./emper-plugin.tsx']);
   const plugin = await fs.readFile(path.join(root, 'runtime', 'emper-plugin.tsx'), 'utf8');
+  assert.match(plugin, /██████╗  ██████╗ ██████╗ ██╗   ██╗/u);
   assert.match(plugin, /home_logo/);
   assert.match(plugin, /home_prompt_right/);
   assert.match(plugin, /session_prompt_right/);

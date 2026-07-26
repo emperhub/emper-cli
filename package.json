@@ -1,6 +1,6 @@
 {
   "name": "@emperhub/cli",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Emper Code agent powered by the OpenCode runtime and Nova models",
   "type": "module",
   "bin": {
