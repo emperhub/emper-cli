@@ -44,6 +44,19 @@ const defaultServices = Object.freeze({
   saveSession,
 });
 
+const SLASH_COMMANDS = Object.freeze([
+  { command:'/model', description:'Choose an available Nova model' },
+  { command:'/session', description:'Open chat history for this workspace' },
+  { command:'/new', description:'Start a clean session' },
+  { command:'/apply', description:'Enable reviewed file edits' },
+  { command:'/readonly', description:'Return to inspection-only mode' },
+  { command:'/clear', description:'Clear the active conversation context' },
+  { command:'/status', description:'Show model, context, and point balance' },
+  { command:'/help', description:'Show all commands' },
+  { command:'/logout', description:'Remove the saved API key' },
+  { command:'/exit', description:'Close Emper' },
+]);
+
 function terminalText(value) {
   return redactSecrets(value)
     .replace(/\x1B(?:\[[0-?]*[ -/]*[@-~]|[@-_])/g, '')
@@ -195,6 +208,25 @@ function Picker({ picker }) {
   );
 }
 
+function CommandMenu({ items, index }) {
+  const start = Math.max(0, Math.min(index - 3, Math.max(0, items.length - 7)));
+  return h(Box, {
+    flexDirection:'column', borderStyle:'round', borderColor:'cyan',
+    paddingX:1, marginBottom:1,
+  },
+    h(Text, { bold:true, color:'cyan' }, 'COMMANDS'),
+    ...items.slice(start, start + 7).map((item, offset) => {
+      const selected = start + offset === index;
+      return h(Box, { key:item.command },
+        h(Text, { bold:selected, color:selected ? 'green' : 'white' }, selected ? '> ' : '  '),
+        h(Text, { bold:true, color:selected ? 'green' : 'white' }, item.command.padEnd(11)),
+        h(Text, { color:'gray' }, item.description),
+      );
+    }),
+    h(Text, { color:'gray' }, 'TYPE to filter   UP/DOWN select   TAB complete   ENTER run'),
+  );
+}
+
 function sessionTime(value) {
   const date = new Date(value);
   return Number.isNaN(date.valueOf()) ? '' : date.toLocaleString(undefined, {
@@ -212,6 +244,7 @@ export function AgentScreen({ api, account:initialAccount, config, services, onL
   const [account, setAccount] = useState(initialAccount);
   const [entries, setEntries] = useState([]);
   const [input, setInput] = useState('');
+  const [commandIndex, setCommandIndex] = useState(0);
   const [busy, setBusy] = useState(false);
   const [session, setSession] = useState(null);
   const [selectedModel, setSelectedModel] = useState(config.model);
@@ -223,6 +256,10 @@ export function AgentScreen({ api, account:initialAccount, config, services, onL
   const entriesRef = useRef([]);
   const recordRef = useRef(initialRecord);
   const approvalRef = useRef(null);
+  const commandQuery = input.trim().toLowerCase();
+  const commandItems = /^\/[^\s]*$/.test(commandQuery)
+    ? SLASH_COMMANDS.filter(item => item.command.startsWith(commandQuery))
+    : [];
 
   const changeEntries = useCallback(update => {
     const next = typeof update === 'function' ? update(entriesRef.current) : update;
@@ -373,6 +410,25 @@ export function AgentScreen({ api, account:initialAccount, config, services, onL
       setApproval(null);
       return;
     }
+    if (!busy && commandItems.length) {
+      if (key.upArrow || key.downArrow) {
+        setCommandIndex(current => {
+          const direction = key.upArrow ? -1 : 1;
+          return (current + direction + commandItems.length) % commandItems.length;
+        });
+        return;
+      }
+      if (key.tab) {
+        setInput(commandItems[Math.min(commandIndex, commandItems.length - 1)].command);
+        setCommandIndex(0);
+        return;
+      }
+      if (key.escape) {
+        setInput('');
+        setCommandIndex(0);
+        return;
+      }
+    }
     if (key.ctrl && rawInput === 'c') exit();
   });
 
@@ -459,13 +515,24 @@ export function AgentScreen({ api, account:initialAccount, config, services, onL
       await onLogout();
       return true;
     }
+    if (value.startsWith('/')) {
+      append('error', `Unknown command: ${value}. Type / to see available commands.`);
+      return true;
+    }
     return false;
   };
 
   const submit = async rawValue => {
-    const value = String(rawValue || '').trim();
+    let value = String(rawValue || '').trim();
+    const matchingCommands = /^\/[^\s]*$/.test(value.toLowerCase())
+      ? SLASH_COMMANDS.filter(item => item.command.startsWith(value.toLowerCase()))
+      : [];
+    if (matchingCommands.length) {
+      value = matchingCommands[Math.min(commandIndex, matchingCommands.length - 1)].command;
+    }
     if (!value || busy || picker) return;
     setInput('');
+    setCommandIndex(0);
     if (await command(value)) return;
     if (!session) {
       append('error', 'Agent is still connecting.');
@@ -497,6 +564,9 @@ export function AgentScreen({ api, account:initialAccount, config, services, onL
           h(Text, { color:'gray' }, 'Ask Emper to inspect, explain, or update this project.'),
         ),
     ),
+    commandItems.length && !picker && !approval && !busy
+      ? h(CommandMenu, { items:commandItems, index:Math.min(commandIndex, commandItems.length - 1) })
+      : null,
     picker ? h(Picker, { picker }) : null,
     approval ? h(Box, {
       flexDirection:'column', borderStyle:'double', borderColor:'yellow', paddingX:1, marginBottom:1,
@@ -511,7 +581,10 @@ export function AgentScreen({ api, account:initialAccount, config, services, onL
       h(Text, { bold:true, color:'green' }, '> '),
       h(TextInput, {
         value:input,
-        onChange:setInput,
+        onChange:value => {
+          setInput(value);
+          setCommandIndex(0);
+        },
         onSubmit:submit,
         placeholder:picker ? 'Choose an item above' : approval ? 'Review the diff above' : busy ? 'Agent is working...' : 'Ask Emper about this project',
         focus:!picker && !approval && !busy && Boolean(session),

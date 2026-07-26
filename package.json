@@ -1,6 +1,6 @@
 {
   "name": "@emperhub/cli",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Emper command-line assistant for Nova models",
   "type": "module",
   "bin": {

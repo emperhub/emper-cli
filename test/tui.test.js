@@ -163,6 +163,48 @@ test('terminal output strips control sequences and redacts credentials', () => {
   assert.equal(output.includes('\u001b'), false);
 });
 
+test('TUI opens and filters the command palette as soon as slash is typed', async t => {
+  const ui = render(React.createElement(EmperTui, {
+    services:services({
+      loadConfig:async () => ({ ...baseConfig, apiKey:'ask-existing-12345678' }),
+    }),
+  }));
+  t.after(() => ui.unmount());
+  await waitForRender();
+  await waitForRender();
+  ui.stdin.write('/');
+  await waitForRender();
+  assert.match(ui.lastFrame(), /COMMANDS/);
+  assert.match(ui.lastFrame(), /\/model/);
+  assert.match(ui.lastFrame(), /\/session/);
+
+  ui.stdin.write('mo');
+  await waitForRender();
+  assert.match(ui.lastFrame(), /\/model\s+Choose an available Nova model/);
+  assert.doesNotMatch(ui.lastFrame(), /\/session\s+Open chat history/);
+  ui.stdin.write('\r');
+  await waitForRender();
+  assert.match(ui.lastFrame(), /SELECT MODEL/);
+});
+
+test('TUI runs the selected slash command with arrow keys and enter', async t => {
+  const ui = render(React.createElement(EmperTui, {
+    services:services({
+      loadConfig:async () => ({ ...baseConfig, apiKey:'ask-existing-12345678' }),
+    }),
+  }));
+  t.after(() => ui.unmount());
+  await waitForRender();
+  await waitForRender();
+  ui.stdin.write('/');
+  await waitForRender();
+  ui.stdin.write('\u001B[B');
+  await waitForRender();
+  ui.stdin.write('\r');
+  await waitForRender();
+  assert.match(ui.lastFrame(), /SESSION HISTORY/);
+});
+
 test('TUI changes models through the model picker and keeps the default', async t => {
   const savedModels = [];
   const sessionModels = [];

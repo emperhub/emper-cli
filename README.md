@@ -32,6 +32,8 @@ emper
 
 The Agent header shows the active model, workspace, remaining points, and total points used. Use `/model` to switch between models available to the active API key and `/session` to open saved chats for the current workspace.
 
+Typing `/` opens the command palette immediately. Continue typing to filter it, use the arrow keys to move, press Tab to complete, or press Enter to run the selected command.
+
 For temporary or automated sessions, set `EMPER_API_KEY` instead. Environment credentials override a saved key.
 
 ## Commands
